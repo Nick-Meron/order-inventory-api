@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\OrderItem;
 use App\Models\Product;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -63,6 +64,13 @@ class ProductController extends Controller
     // Admin only
     public function destroy(Product $product): JsonResponse
     {
+        // A product that was ordered must stay, or old orders would break.
+        if (OrderItem::where('product_id', $product->id)->exists()) {
+            return response()->json([
+                'message' => 'This product is in existing orders. Set it to inactive instead of deleting it.',
+            ], 409);
+        }
+
         $product->delete();
 
         return response()->json(['message' => 'Product deleted.']);
