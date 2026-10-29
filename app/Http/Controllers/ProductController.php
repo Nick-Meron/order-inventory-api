@@ -31,6 +31,27 @@ class ProductController extends Controller
     }
 
     // Admin only (enforced in routes/api.php)
+    public function lowStock(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'threshold' => ['sometimes', 'integer', 'min:0', 'max:1000'],
+        ]);
+
+        $threshold = $data['threshold'] ?? 5;
+
+        $products = Product::where('active', true)
+            ->where('stock', '<=', $threshold)
+            ->orderBy('stock')
+            ->orderBy('name')
+            ->get();
+
+        return response()->json([
+            'threshold' => (int) $threshold,
+            'products' => $products,
+        ]);
+    }
+
+    // Admin only
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([

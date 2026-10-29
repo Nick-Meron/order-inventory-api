@@ -12,6 +12,14 @@ use Illuminate\Validation\ValidationException;
 
 class OrderController extends Controller
 {
+    // The only allowed status changes. Anything else is rejected.
+    private const TRANSITIONS = [
+        Order::PENDING => [Order::CONFIRMED, Order::CANCELLED],
+        Order::CONFIRMED => [Order::DELIVERED, Order::CANCELLED],
+        Order::DELIVERED => [],
+        Order::CANCELLED => [],
+    ];
+
     // Customers see only their own orders. Admins see all orders.
     public function index(Request $request): JsonResponse
     {
@@ -104,5 +112,44 @@ class OrderController extends Controller
         });
 
         return response()->json(['order' => $order->load('items.product')], 201);
+    }
+
+    // Admin only (enforced in routes/api.php)
+    public function updateStatus(Request $request, Order $order): JsonResponse
+    {
+        $data = $request->validate([
+            'status' => ['required', 'string', 'in:confirmed,delivered,cancelled'],
+        ]);
+
+        DB::transaction(function () use ($order, $data) {
+            // Lock the order so two admins can't change it at the same moment.
+            $locked = Order::whereKey($order->id)->lockForUpdate()->firstOrFail();
+
+            $allowed = self::TRANSITIONS[$locked->status] ?? [];
+
+            if (! in_array($data['status'], $allowed, true)) {
+                throw ValidationException::withMessages([
+                    'status' => "An order cannot change from {$locked->status} to {$data['status']}.",
+                ]);
+            }
+
+            // Cancelling gives the stock back.
+            if ($data['status'] === Order::CANCELLED) {
+                $items = $locked->items()->orderBy('product_id')->get();
+
+                foreach ($items as $item) {
+                    Product::whereKey($item->product_id)
+                        ->lockForUpdate()
+                        ->firstOrFail()
+                        ->increment('stock', $item->quantity);
+                }
+            }
+
+            $locked->update(['status' => $data['status']]);
+        });
+
+        return response()->json([
+            'order' => $order->fresh()->load('items.product', 'user:id,name,email'),
+        ]);
     }
 }
