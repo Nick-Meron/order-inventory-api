@@ -20,6 +20,10 @@ class Order extends Model
         'user_id',
         'status',
         'total',
+        'delivery_name',
+        'phone',
+        'address',
+        'city',
     ];
 
     protected function casts(): array

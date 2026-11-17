@@ -48,9 +48,16 @@ class OrderController extends Controller
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
+            'delivery_name' => ['required', 'string', 'min:2', 'max:255'],
+            // Sri Lankan numbers: 0771234567 or +94771234567
+            'phone' => ['required', 'string', 'regex:/^(\+94|0)\d{9}$/'],
+            'address' => ['required', 'string', 'min:5', 'max:500'],
+            'city' => ['required', 'string', 'min:2', 'max:100'],
             'items' => ['required', 'array', 'min:1', 'max:50'],
             'items.*.product_id' => ['required', 'integer', 'distinct', 'exists:products,id'],
             'items.*.quantity' => ['required', 'integer', 'min:1', 'max:1000'],
+        ], [
+            'phone.regex' => 'Enter a valid phone number like 0771234567.',
         ]);
 
         // Everything inside this function is ALL-OR-NOTHING.
@@ -94,6 +101,10 @@ class OrderController extends Controller
                 'user_id' => $request->user()->id,
                 'status' => Order::PENDING,
                 'total' => round($total, 2),
+                'delivery_name' => trim($data['delivery_name']),
+                'phone' => $data['phone'],
+                'address' => trim($data['address']),
+                'city' => trim($data['city']),
             ]);
 
             foreach ($lines as $line) {
