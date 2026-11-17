@@ -6,6 +6,8 @@ use App\Models\OrderItem;
 use App\Models\Product;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Str;
 
 class ProductController extends Controller
 {
@@ -82,6 +84,29 @@ class ProductController extends Controller
         return response()->json(['product' => $product->fresh()]);
     }
 
+    // Admin only. Only real image files are accepted, 4 MB at most.
+    public function uploadImage(Request $request, Product $product): JsonResponse
+    {
+        $request->validate([
+            'image' => ['required', 'file', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
+        ]);
+
+        $file = $request->file('image');
+        // A random file name, so nobody can overwrite or guess another file.
+        $name = Str::uuid()->toString().'.'.$file->extension();
+        $file->move(public_path('product-images'), $name);
+
+        // Remove the old photo so unused files don't pile up.
+        if ($product->image_path) {
+            File::delete(public_path('product-images/'.$product->image_path));
+        }
+
+        $product->image_path = $name;
+        $product->save();
+
+        return response()->json(['product' => $product->fresh()]);
+    }
+
     // Admin only
     public function destroy(Product $product): JsonResponse
     {
@@ -90,6 +115,10 @@ class ProductController extends Controller
             return response()->json([
                 'message' => 'This product is in existing orders. Set it to inactive instead of deleting it.',
             ], 409);
+        }
+
+        if ($product->image_path) {
+            File::delete(public_path('product-images/'.$product->image_path));
         }
 
         $product->delete();

@@ -16,6 +16,11 @@ class Product extends Model
         'active',
     ];
 
+    // The app receives image_url (a full link), not the raw file name.
+    protected $hidden = ['image_path'];
+
+    protected $appends = ['image_url'];
+
     protected function casts(): array
     {
         return [
@@ -23,5 +28,10 @@ class Product extends Model
             'stock' => 'integer',
             'active' => 'boolean',
         ];
+    }
+
+    public function getImageUrlAttribute(): ?string
+    {
+        return $this->image_path ? url('product-images/'.$this->image_path) : null;
     }
 }
